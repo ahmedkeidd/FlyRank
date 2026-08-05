@@ -6,3 +6,4 @@ app = FastAPI()
 def root():
     return {"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}
 x=5
+print(x)
