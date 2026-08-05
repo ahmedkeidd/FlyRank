@@ -26,3 +26,34 @@ def get_task(task_id: int):
         if task["id"] == task_id:
             return task
     raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+@app.post("/tasks", status_code=201)
+def create_task(task: dict):
+    if "title" not in task or not task["title"]:
+        raise HTTPException(status_code=400, detail="Title is required")
+    new_task = {
+        "id": len(tasks) + 1,
+        "title": task["title"],
+        "done": False
+    }
+    tasks.append(new_task)
+    return new_task
+
+@app.put("/tasks/{task_id}")
+def update_task(task_id: int, updates: dict):
+    for task in tasks:
+        if task["id"] == task_id:
+            if "title" in updates and updates["title"]:
+                task["title"] = updates["title"]
+            if "done" in updates:
+                task["done"] = updates["done"]
+            return task
+    raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int):
+    for i, task in enumerate(tasks):
+        if task["id"] == task_id:
+            tasks.pop(i)
+            return
+    raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
