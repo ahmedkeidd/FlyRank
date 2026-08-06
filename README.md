@@ -46,4 +46,4 @@ This returns all completed tasks directly from the database.
 
 ## DB Browser screenshot
 
-[Add your screenshot here]
+[![alt text](image.png)]
