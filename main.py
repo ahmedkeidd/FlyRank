@@ -130,3 +130,22 @@ def login(data: dict):
         "access_token": response.session.access_token,
         "refresh_token": response.session.refresh_token
     }
+@app.get("/public/info")
+def public_info():
+    """Public endpoint - no auth needed"""
+    return {"message": "Welcome stranger! This info is public."}
+
+@app.get("/protected/profile")
+def profile(authorization: str = None):
+    """Protected endpoint - requires auth token"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Access token required")
+    token = authorization.replace("Bearer ", "")
+    response = supabase.auth.get_user(token)
+    if not response.user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return {
+        "id": response.user.id,
+        "email": response.user.email,
+        "created_at": response.user.created_at
+    }
