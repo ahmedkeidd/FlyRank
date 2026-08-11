@@ -1,5 +1,14 @@
 from fastapi import FastAPI, HTTPException
 import sqlite3
+import os
+from dotenv import load_dotenv
+from supabase import create_client
+
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_db():
     conn = sqlite3.connect("tasks.db")
@@ -96,3 +105,28 @@ def delete_task(task_id: int):
     conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     conn.commit()
     conn.close()
+
+@app.post("/auth/signup", status_code=201)
+def signup(data: dict):
+    if "email" not in data or "password" not in data:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    response = supabase.auth.sign_up({
+        "email": data["email"],
+        "password": data["password"]
+    })
+    return {"user": response.user}
+
+@app.post("/auth/login")
+def login(data: dict):
+    if "email" not in data or "password" not in data:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    response = supabase.auth.sign_in_with_password({
+        "email": data["email"],
+        "password": data["password"]
+    })
+    if not response.user:
+        raise HTTPException(status_code=401, detail="Invalid login credentials")
+    return {
+        "access_token": response.session.access_token,
+        "refresh_token": response.session.refresh_token
+    }
