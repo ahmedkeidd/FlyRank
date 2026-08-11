@@ -5,6 +5,7 @@ import sqlite3
 import os
 from dotenv import load_dotenv
 from supabase import create_client
+from fastapi.security import HTTPBearer
 
 load_dotenv()
 
@@ -37,6 +38,7 @@ def init_db():
 init_db()
 
 app = FastAPI()
+security = HTTPBearer()
 
 @app.get("/")
 def root():
@@ -137,10 +139,8 @@ def public_info():
     """Public endpoint - no auth needed"""
     return {"message": "Welcome stranger! This info is public."}
 
-def verify_token(authorization: str = Header(default=None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Access token required")
-    token = authorization.replace("Bearer ", "")
+def verify_token(credentials = Depends(security)):
+    token = credentials.credentials
     try:
         response = supabase.auth.get_user(token)
         if not response.user:
