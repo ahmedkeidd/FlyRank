@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi import Header
+from fastapi import Depends
 import sqlite3
 import os
 from dotenv import load_dotenv
@@ -136,9 +137,7 @@ def public_info():
     """Public endpoint - no auth needed"""
     return {"message": "Welcome stranger! This info is public."}
 
-@app.get("/protected/profile")
-def profile(authorization: str = Header(default=None)):
-    """Protected endpoint - requires auth token"""
+def verify_token(authorization: str = Header(default=None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Access token required")
     token = authorization.replace("Bearer ", "")
@@ -146,11 +145,28 @@ def profile(authorization: str = Header(default=None)):
         response = supabase.auth.get_user(token)
         if not response.user:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
-        return {
-            "id": response.user.id,
-            "email": response.user.email,
-            "created_at": response.user.created_at
-        }
+        return response.user
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
+
+
+@app.get("/protected/profile")
+def profile(user=Depends(verify_token)):
+    """Protected endpoint - requires auth token"""
+    return {
+        "id": user.id,
+        "email": user.email,
+        "created_at": user.created_at
+    }
+
+
+@app.post("/auth/logout", status_code=204)
+def logout(user=Depends(verify_token)):
+    """Logout - requires auth token"""
+    supabase.auth.sign_out()
+    return
+
+@app.get("/protected/dashboard")
+def dashboard(user=Depends(verify_token)):
+    """Another protected route using the same guard"""
+    return {"message": f"Welcome to your dashboard, {user.email}"}
