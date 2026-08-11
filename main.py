@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi import Header
 import sqlite3
 import os
 from dotenv import load_dotenv
@@ -136,16 +137,20 @@ def public_info():
     return {"message": "Welcome stranger! This info is public."}
 
 @app.get("/protected/profile")
-def profile(authorization: str = None):
+def profile(authorization: str = Header(default=None)):
     """Protected endpoint - requires auth token"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Access token required")
     token = authorization.replace("Bearer ", "")
-    response = supabase.auth.get_user(token)
-    if not response.user:
+    try:
+        response = supabase.auth.get_user(token)
+        if not response.user:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        return {
+            "id": response.user.id,
+            "email": response.user.email,
+            "created_at": response.user.created_at
+        }
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return {
-        "id": response.user.id,
-        "email": response.user.email,
-        "created_at": response.user.created_at
-    }
+    
