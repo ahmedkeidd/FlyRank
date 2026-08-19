@@ -118,3 +118,17 @@ for url, source_page in all_book_urls:
 
 print(f"valid={len(valid_records)}")
 print(f"invalid={len(invalid_records)}")
+
+import json
+
+OUTPUT_DIR = Path(__file__).parent.parent / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+with open(OUTPUT_DIR / "books.json", "w", encoding="utf-8") as f:
+    json.dump(valid_records, f, indent=2, ensure_ascii=False)
+
+if invalid_records:
+    with open(OUTPUT_DIR / "errors.json", "w", encoding="utf-8") as f:
+        json.dump(invalid_records, f, indent=2, ensure_ascii=False)
+
+print(f"saved {len(valid_records)} records to output/books.json")
