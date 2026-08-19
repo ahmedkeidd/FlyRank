@@ -3,6 +3,19 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import time
+from pydantic import BaseModel, ValidationError
+from typing import Optional
+
+class BookRecord(BaseModel):
+    title: str
+    product_url: str
+    price_text: str
+    price_gbp: float
+    availability_text: str
+    rating_text: str
+    description: Optional[str]
+    source_page: str
+    fetched_at: str
 
 USER_AGENT = "FlyRankInternshipA9/1.0 (+https://github.com/ahmedkeidd/FlyRank)"
 CACHE_DIR = Path(__file__).parent.parent / "cache"
@@ -92,10 +105,16 @@ def extract_book(book_url, source_page):
     }
 
 
-records = []
+valid_records = []
+invalid_records = []
+
 for url, source_page in all_book_urls:
-    record = extract_book(url, source_page)
-    records.append(record)
-    
-print(f"detail_pages={len(records)}")
-print(records[0])
+    raw = extract_book(url, source_page)
+    try:
+        validated = BookRecord(**raw)
+        valid_records.append(validated.model_dump())
+    except ValidationError as e:
+        invalid_records.append({"url": url, "reason": str(e)})
+
+print(f"valid={len(valid_records)}")
+print(f"invalid={len(invalid_records)}")
