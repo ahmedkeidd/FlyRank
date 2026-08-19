@@ -44,22 +44,23 @@ while current_url and page_num <= 3:
 
     book_links = soup.select("article.product_pod h3 a")
     book_urls = [urljoin(current_url, link["href"]) for link in book_links]
-    all_book_urls.extend(book_urls)
+    for url in book_urls:
+        all_book_urls.append((url, current_url))  # store pair: (book_url, source_page)
 
     current_url = get_next_page_url(soup, current_url)
     page_num += 1
 
-unique_urls = list(set(all_book_urls))
+unique_urls = list(set(url for url, source in all_book_urls))
 
 print(f"catalogue_pages={page_num - 1}")
 print(f"discovered={len(all_book_urls)}")
 print(f"unique_urls={len(unique_urls)}")
 
-book_url = all_book_urls[0]
-book_html = fetch_page(book_url, "test-book.html")
-book_soup = BeautifulSoup(book_html, "html.parser")
-
 from datetime import datetime, timezone
+
+def parse_price(price_text):
+    cleaned = price_text.replace("£", "").strip()
+    return float(cleaned)
 
 def extract_book(book_url, source_page):
     book_html = fetch_page(book_url, book_url.rstrip("/").split("/")[-2] + ".html")
@@ -75,10 +76,14 @@ def extract_book(book_url, source_page):
     description_tag = book_soup.select_one("#product_description ~ p")
     description = description_tag.text if description_tag else None
 
+    price_text = book_soup.select_one("p.price_color").text
+    price_gbp = parse_price(price_text)
+
     return {
         "title": title,
         "product_url": book_url,
         "price_text": price_text,
+        "price_gbp": price_gbp,
         "availability_text": availability_text,
         "rating_text": rating_text,
         "description": description,
@@ -88,9 +93,9 @@ def extract_book(book_url, source_page):
 
 
 records = []
-for url in all_book_urls:
-    record = extract_book(url, current_url)
+for url, source_page in all_book_urls:
+    record = extract_book(url, source_page)
     records.append(record)
-
+    
 print(f"detail_pages={len(records)}")
 print(records[0])
