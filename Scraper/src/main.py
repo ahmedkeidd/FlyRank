@@ -21,7 +21,7 @@ def fetch_page(url, cache_filename):
     response = requests.get(url, headers=headers, timeout=TIMEOUT)
     if response.status_code != 200:
         raise Exception(f"Failed to fetch {url}: status {response.status_code}")
-
+    response.encoding = "utf-8"   
     html = response.text
     cache_path.write_text(html, encoding="utf-8")
     print(f"FETCH: {cache_filename} ({len(html)} bytes)")
@@ -54,3 +54,43 @@ unique_urls = list(set(all_book_urls))
 print(f"catalogue_pages={page_num - 1}")
 print(f"discovered={len(all_book_urls)}")
 print(f"unique_urls={len(unique_urls)}")
+
+book_url = all_book_urls[0]
+book_html = fetch_page(book_url, "test-book.html")
+book_soup = BeautifulSoup(book_html, "html.parser")
+
+from datetime import datetime, timezone
+
+def extract_book(book_url, source_page):
+    book_html = fetch_page(book_url, book_url.rstrip("/").split("/")[-2] + ".html")
+    book_soup = BeautifulSoup(book_html, "html.parser")
+
+    title = book_soup.select_one("h1").text
+    price_text = book_soup.select_one("p.price_color").text
+    availability_text = book_soup.select_one("p.availability").text.strip()
+
+    rating_tag = book_soup.select_one("p.star-rating")
+    rating_text = rating_tag["class"][1]
+
+    description_tag = book_soup.select_one("#product_description ~ p")
+    description = description_tag.text if description_tag else None
+
+    return {
+        "title": title,
+        "product_url": book_url,
+        "price_text": price_text,
+        "availability_text": availability_text,
+        "rating_text": rating_text,
+        "description": description,
+        "source_page": source_page,
+        "fetched_at": datetime.now(timezone.utc).isoformat()
+    }
+
+
+records = []
+for url in all_book_urls:
+    record = extract_book(url, current_url)
+    records.append(record)
+
+print(f"detail_pages={len(records)}")
+print(records[0])
