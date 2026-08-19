@@ -1,23 +1,56 @@
 import requests
 from pathlib import Path
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+import time
 
 USER_AGENT = "FlyRankInternshipA9/1.0 (+https://github.com/ahmedkeidd/FlyRank)"
 CACHE_DIR = Path(__file__).parent.parent / "cache"
 TIMEOUT = 10
 
-CACHE_DIR.mkdir(exist_ok=True)
-cache_path = CACHE_DIR / "catalogue-page-1.html"
+def fetch_page(url, cache_filename):
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = CACHE_DIR / cache_filename
 
-if cache_path.exists():
-    html = cache_path.read_text(encoding="utf-8")
-    print(f"CACHE HIT ({len(html)} bytes)")
-else:
+    if cache_path.exists():
+        html = cache_path.read_text(encoding="utf-8")
+        print(f"CACHE HIT: {cache_filename} ({len(html)} bytes)")
+        return html
+
     headers = {"User-Agent": USER_AGENT}
-    response = requests.get(
-        "https://books.toscrape.com/catalogue/page-1.html",
-        headers=headers,
-        timeout=TIMEOUT
-    )
+    response = requests.get(url, headers=headers, timeout=TIMEOUT)
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch {url}: status {response.status_code}")
+
     html = response.text
     cache_path.write_text(html, encoding="utf-8")
-    print(f"FETCH ({len(html)} bytes)")
+    print(f"FETCH: {cache_filename} ({len(html)} bytes)")
+    time.sleep(0.5)
+    return html
+
+def get_next_page_url(soup, current_url):
+    next_link = soup.select_one("li.next a")
+    if next_link is None:
+        return None
+    return urljoin(current_url, next_link["href"])
+
+all_book_urls = []
+current_url = "https://books.toscrape.com/catalogue/page-1.html"
+page_num = 1
+
+while current_url and page_num <= 3:
+    html = fetch_page(current_url, f"catalogue-page-{page_num}.html")
+    soup = BeautifulSoup(html, "html.parser")
+
+    book_links = soup.select("article.product_pod h3 a")
+    book_urls = [urljoin(current_url, link["href"]) for link in book_links]
+    all_book_urls.extend(book_urls)
+
+    current_url = get_next_page_url(soup, current_url)
+    page_num += 1
+
+unique_urls = list(set(all_book_urls))
+
+print(f"catalogue_pages={page_num - 1}")
+print(f"discovered={len(all_book_urls)}")
+print(f"unique_urls={len(unique_urls)}")
