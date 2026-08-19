@@ -1,8 +1,10 @@
 import requests
+import time
+import json
 from pathlib import Path
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-import time
+from datetime import datetime, timezone
 from pydantic import BaseModel, ValidationError
 from typing import Optional
 
@@ -19,7 +21,10 @@ class BookRecord(BaseModel):
 
 USER_AGENT = "FlyRankInternshipA9/1.0 (+https://github.com/ahmedkeidd/FlyRank)"
 CACHE_DIR = Path(__file__).parent.parent / "cache"
+OUTPUT_DIR = Path(__file__).parent.parent / "output"
 TIMEOUT = 10
+
+run_start = datetime.now(timezone.utc)
 
 def fetch_page(url, cache_filename):
     CACHE_DIR.mkdir(exist_ok=True)
@@ -34,7 +39,7 @@ def fetch_page(url, cache_filename):
     response = requests.get(url, headers=headers, timeout=TIMEOUT)
     if response.status_code != 200:
         raise Exception(f"Failed to fetch {url}: status {response.status_code}")
-    response.encoding = "utf-8"   
+    response.encoding = "utf-8"
     html = response.text
     cache_path.write_text(html, encoding="utf-8")
     print(f"FETCH: {cache_filename} ({len(html)} bytes)")
@@ -47,30 +52,6 @@ def get_next_page_url(soup, current_url):
         return None
     return urljoin(current_url, next_link["href"])
 
-all_book_urls = []
-current_url = "https://books.toscrape.com/catalogue/page-1.html"
-page_num = 1
-
-while current_url and page_num <= 3:
-    html = fetch_page(current_url, f"catalogue-page-{page_num}.html")
-    soup = BeautifulSoup(html, "html.parser")
-
-    book_links = soup.select("article.product_pod h3 a")
-    book_urls = [urljoin(current_url, link["href"]) for link in book_links]
-    for url in book_urls:
-        all_book_urls.append((url, current_url))  # store pair: (book_url, source_page)
-
-    current_url = get_next_page_url(soup, current_url)
-    page_num += 1
-
-unique_urls = list(set(url for url, source in all_book_urls))
-
-print(f"catalogue_pages={page_num - 1}")
-print(f"discovered={len(all_book_urls)}")
-print(f"unique_urls={len(unique_urls)}")
-
-from datetime import datetime, timezone
-
 def parse_price(price_text):
     cleaned = price_text.replace("£", "").strip()
     return float(cleaned)
@@ -81,6 +62,7 @@ def extract_book(book_url, source_page):
 
     title = book_soup.select_one("h1").text
     price_text = book_soup.select_one("p.price_color").text
+    price_gbp = parse_price(price_text)
     availability_text = book_soup.select_one("p.availability").text.strip()
 
     rating_tag = book_soup.select_one("p.star-rating")
@@ -88,9 +70,6 @@ def extract_book(book_url, source_page):
 
     description_tag = book_soup.select_one("#product_description ~ p")
     description = description_tag.text if description_tag else None
-
-    price_text = book_soup.select_one("p.price_color").text
-    price_gbp = parse_price(price_text)
 
     return {
         "title": title,
@@ -104,12 +83,41 @@ def extract_book(book_url, source_page):
         "fetched_at": datetime.now(timezone.utc).isoformat()
     }
 
+# --- Stage 2: discover book links across 3 catalogue pages ---
+all_book_urls = []
+current_url = "https://books.toscrape.com/catalogue/page-1.html"
+page_num = 1
 
+while current_url and page_num <= 3:
+    html = fetch_page(current_url, f"catalogue-page-{page_num}.html")
+    soup = BeautifulSoup(html, "html.parser")
+
+    book_links = soup.select("article.product_pod h3 a")
+    book_urls = [urljoin(current_url, link["href"]) for link in book_links]
+    for url in book_urls:
+        all_book_urls.append((url, current_url))
+
+    current_url = get_next_page_url(soup, current_url)
+    page_num += 1
+
+unique_urls = list(set(url for url, source in all_book_urls))
+
+print(f"catalogue_pages={page_num - 1}")
+print(f"discovered={len(all_book_urls)}")
+print(f"unique_urls={len(unique_urls)}")
+
+# --- Stage 3-5: extract, validate, survive failures ---
 valid_records = []
 invalid_records = []
+failed_pages = []
 
 for url, source_page in all_book_urls:
-    raw = extract_book(url, source_page)
+    try:
+        raw = extract_book(url, source_page)
+    except Exception as e:
+        failed_pages.append({"url": url, "reason": str(e)})
+        continue
+
     try:
         validated = BookRecord(**raw)
         valid_records.append(validated.model_dump())
@@ -118,10 +126,9 @@ for url, source_page in all_book_urls:
 
 print(f"valid={len(valid_records)}")
 print(f"invalid={len(invalid_records)}")
+print(f"failed={len(failed_pages)}")
 
-import json
-
-OUTPUT_DIR = Path(__file__).parent.parent / "output"
+# --- Store output ---
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 with open(OUTPUT_DIR / "books.json", "w", encoding="utf-8") as f:
@@ -132,3 +139,21 @@ if invalid_records:
         json.dump(invalid_records, f, indent=2, ensure_ascii=False)
 
 print(f"saved {len(valid_records)} records to output/books.json")
+
+# --- Run report ---
+run_end = datetime.now(timezone.utc)
+duration = (run_end - run_start).total_seconds()
+
+run_report = {
+    "start_time": run_start.isoformat(),
+    "duration_seconds": duration,
+    "pages_fetched": len(all_book_urls),
+    "valid_records": len(valid_records),
+    "invalid_records": len(invalid_records),
+    "failed_pages": len(failed_pages)
+}
+
+with open(OUTPUT_DIR / "run-report.json", "w", encoding="utf-8") as f:
+    json.dump(run_report, f, indent=2)
+
+print("run report saved")
