@@ -1,0 +1,17 @@
+# Secrets (Crucial!)
+.env
+
+# Virtual Environment
+venv/
+
+# Python Cache & Databases
+__pycache__/
+*.db
+*.sqbpro
+
+# Screenshots / Local images
+*.png
+
+# Scraper output
+Scraper/cache/
+Scraper/output/
