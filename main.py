@@ -6,6 +6,8 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 from fastapi.security import HTTPBearer
+import sys
+from schema import EnrichInput, EnrichOutput
 
 load_dotenv()
 
@@ -170,3 +172,16 @@ def logout(user=Depends(verify_token)):
 def dashboard(user=Depends(verify_token)):
     """Another protected route using the same guard"""
     return {"message": f"Welcome to your dashboard, {user.email}"}
+
+LLM_STUB = os.environ.get("LLM_STUB") == "1"
+
+@app.post("/enrich", response_model=EnrichOutput)
+def enrich_book(input: EnrichInput):
+    if LLM_STUB:
+        return EnrichOutput(
+            category="fiction",
+            summary="A stubbed summary for testing.",
+            quality_flags=[]
+        )
+    # real model call comes in Stage 2 — not yet
+    raise HTTPException(status_code=501, detail="Model call not implemented yet")
