@@ -8,7 +8,7 @@ from supabase import create_client
 from fastapi.security import HTTPBearer
 import sys
 from schema import EnrichInput, EnrichOutput
-
+from client import call_model
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -183,5 +183,6 @@ def enrich_book(input: EnrichInput):
             summary="A stubbed summary for testing.",
             quality_flags=[]
         )
-    # real model call comes in Stage 2 — not yet
-    raise HTTPException(status_code=501, detail="Model call not implemented yet")
+    raw_output = call_model(input.model_dump())
+    print("RAW MODEL OUTPUT:", raw_output)
+    raise HTTPException(status_code=501, detail="Parsing not implemented yet")
