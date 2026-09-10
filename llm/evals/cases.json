@@ -1,0 +1,10 @@
+﻿[
+  {"input": {"title": "The Great Gatsby", "description": "A novel about wealth, love, and the American Dream in 1920s America."}, "expected_category": "fiction"},
+  {"input": {"title": "A Brief History of Time", "description": "An exploration of cosmology, black holes, and the origin of the universe."}, "expected_category": "nonfiction"},
+  {"input": {"title": "Leaves of Grass", "description": "A collection of poems celebrating nature, democracy, and the self."}, "expected_category": "poetry"},
+  {"input": {"title": "The Very Hungry Caterpillar", "description": "A picture book following a caterpillar as it eats its way through the week."}, "expected_category": "childrens"},
+  {"input": {"title": "Untitled Manuscript", "description": null}, "expected_category": "other"},
+  {"input": {"title": "Learning Python", "description": "A short guide."}, "expected_category": "nonfiction"},
+  {"input": {"title": "Whispers of the Wind", "description": "A haunting story of loss and memory told through fragmented verse."}, "expected_category": "poetry"},
+  {"input": {"title": "Book", "description": ""}, "expected_category": "other"}
+]
