@@ -177,6 +177,7 @@ def dashboard(user=Depends(verify_token)):
     return {"message": f"Welcome to your dashboard, {user.email}"}
 
 LLM_STUB = os.environ.get("LLM_STUB") == "1"
+LLM_ENABLED = os.environ.get("LLM_ENABLED", "true").lower() != "false"
 def quarantine(input_data: dict, raw_output: str, error: str):
     os.makedirs("llm/logs", exist_ok=True)
     entry = {
@@ -188,9 +189,12 @@ def quarantine(input_data: dict, raw_output: str, error: str):
     }
     with open("llm/logs/quarantine.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
-@app.post("/enrich", response_model=EnrichOutput)
+
 @app.post("/enrich", response_model=EnrichOutput)
 def enrich_book(input: EnrichInput):
+    if not LLM_ENABLED:
+        raise HTTPException(status_code=503, detail="LLM feature is currently disabled")
+
     if LLM_STUB:
         return EnrichOutput(
             category="fiction",
