@@ -8,7 +8,10 @@ from supabase import create_client
 from fastapi.security import HTTPBearer
 import sys
 from schema import EnrichInput, EnrichOutput
-from client import call_model
+import json
+from datetime import datetime, timezone
+from pydantic import ValidationError
+from client import call_model, call_model_repair, parse_model_json
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -174,7 +177,18 @@ def dashboard(user=Depends(verify_token)):
     return {"message": f"Welcome to your dashboard, {user.email}"}
 
 LLM_STUB = os.environ.get("LLM_STUB") == "1"
-
+def quarantine(input_data: dict, raw_output: str, error: str):
+    os.makedirs("llm/logs", exist_ok=True)
+    entry = {
+        "input": input_data,
+        "raw_output": raw_output,
+        "error": error,
+        "prompt_version": "enrich-v1",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    with open("llm/logs/quarantine.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+@app.post("/enrich", response_model=EnrichOutput)
 @app.post("/enrich", response_model=EnrichOutput)
 def enrich_book(input: EnrichInput):
     if LLM_STUB:
@@ -183,6 +197,22 @@ def enrich_book(input: EnrichInput):
             summary="A stubbed summary for testing.",
             quality_flags=[]
         )
-    raw_output = call_model(input.model_dump())
-    print("RAW MODEL OUTPUT:", raw_output)
-    raise HTTPException(status_code=501, detail="Parsing not implemented yet")
+
+    input_dict = input.model_dump()
+    raw_output = call_model(input_dict)
+
+    try:
+        parsed = parse_model_json(raw_output)
+        validated = EnrichOutput(**parsed)
+        return validated
+    except (json.JSONDecodeError, ValidationError) as e:
+        first_error = str(e)
+
+    repaired_output = call_model_repair(input_dict, raw_output, first_error)
+    try:
+        parsed = parse_model_json(repaired_output)
+        validated = EnrichOutput(**parsed)
+        return validated
+    except (json.JSONDecodeError, ValidationError) as e:
+        quarantine(input_dict, repaired_output, str(e))
+        raise HTTPException(status_code=422, detail="Model could not produce a valid response after repair")
